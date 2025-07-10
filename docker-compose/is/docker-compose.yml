@@ -1,34 +1,75 @@
-version: '2.3'
+version: '3.8'
+
 services:
-  mysql:
-    image: mysql:8.0
-    ports:
-      - 3306
+  # PostgreSQL Database Service
+  db:
+    image: postgres:latest
+    container_name: postgres_for_wso2
     environment:
-        MYSQL_ROOT_PASSWORD: root
-        MYSQL_USER: wso2carbon
-        MYSQL_PASSWORD: wso2carbon
-    volumes:
-      - ./conf/mysql/scripts:/docker-entrypoint-initdb.d
-      - ./conf/mysql/conf/my.cnf:/etc/mysql/mysql.conf.d/my.cnf
-    healthcheck:
-      test: ["CMD", "mysqladmin" ,"ping", "-uroot", "-proot"]
-      interval: 30s
-      timeout: 60s
-      retries: 5
-  identity-server:
-    build: ./dockerfiles/is
+      - POSTGRES_USER=regadmin
+      - POSTGRES_PASSWORD=regadmin
     ports:
-      - "9763:9763"
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - wso2_network # Use a common network name
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U regadmin"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Database Initialization Service
+  db-init:
+    image: postgres:latest
+    container_name: db_init_for_wso2
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - wso2_network # Use a common network name
+    volumes:
+      - ./dbscripts:/dbscripts
+    environment:
+      - PGPASSWORD=regadmin
+    command: >
+      bash -c "
+        echo '---------Creating databases---------' &&
+        psql -h db -U regadmin -c 'CREATE DATABASE \"WSO2_IDENTITY_DB\";' &&
+        psql -h db -U regadmin -c 'CREATE DATABASE \"WSO2_SHARED_DB\";' &&
+        echo '---------Executing scripts for WSO2_IDENTITY_DB---------' &&
+        psql -h db -U regadmin -d WSO2_IDENTITY_DB -f /dbscripts/identity/postgresql.sql &&
+        psql -h db -U regadmin -d WSO2_IDENTITY_DB -f /dbscripts/consent/postgresql.sql &&
+        echo '---------Executing scripts for WSO2_SHARED_DB---------' &&
+        psql -h db -U regadmin -d WSO2_SHARED_DB -f /dbscripts/postgresql.sql &&
+        echo '---------Database initialization complete---------'
+      "
+      
+  # WSO2 Identity Server Service
+  identity-server:
+    build: ../../dockerfiles/alpine/is/
+    container_name: wso2_is
+    ports:
       - "9443:9443"
     healthcheck:
-      test: ["CMD", "curl", "-k", "-f", "https://localhost:9443/oauth2/token/.well-known/openid-configuration"]
-      interval: 5s
-      timeout: 120s
-      start_period: 100s
+      test: ["CMD", "curl", "-k", "-f", "https://localhost:9443/console"]
+      interval: 30s
+      timeout: 20s
+      start_period: 240s
+      retries: 5
+    depends_on:
+      db-init: # It should wait for the db-init to complete
+        condition: service_completed_successfully
     volumes:
       - ./conf/identity-server:/home/wso2carbon/wso2-config-volume
-    depends_on:
-      mysql:
-        condition: service_healthy
+    networks:
+      - wso2_network # Use a common network name
 
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  wso2_network: # Define the common network
+    driver: bridge
