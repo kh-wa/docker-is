@@ -14,6 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License
 # ------------------------------------------------------------------------
+echo "Starting WSO2 Identity Server..."
+echo "Working Directory: ${WORKING_DIRECTORY}"
+echo "WSO2 Server Home: ${WSO2_SERVER_HOME}"
+
+test ! -d ${WORKING_DIRECTORY} && echo "User home does not exist: ${WORKING_DIRECTORY}" && exit 1
+test ! -d ${WSO2_SERVER_HOME} && echo "Server home does not exist: ${WSO2_SERVER_HOME}" && exit 1
 
 set -e
 

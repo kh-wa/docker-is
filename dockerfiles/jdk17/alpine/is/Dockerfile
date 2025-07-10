@@ -27,7 +27,32 @@ ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
 RUN apk add --no-cache tzdata musl-locales musl-locales-lang \
     && rm -rf /var/cache/apk/*
 
-ENV JAVA_VERSION jdk-17.0.11+9
+# Set Docker image build arguments.
+# Build arguments for user/group configurations.
+ARG USER=wso2carbon
+ARG USER_ID=802
+ARG USER_GROUP=wso2
+ARG USER_GROUP_ID=802
+ARG USER_HOME=/home/${USER}
+# Build arguments for WSO2 product installation.
+ARG WSO2_SERVER_NAME=wso2is
+ARG WSO2_SERVER_VERSION=7.1.0
+ARG WSO2_SERVER_REPOSITORY=product-is
+ARG WSO2_SERVER=${WSO2_SERVER_NAME}-${WSO2_SERVER_VERSION}
+ARG WSO2_SERVER_HOME=${USER_HOME}/${WSO2_SERVER}
+# Hosted wso2is-7.1.0 distribution URL.
+ARG WSO2_SERVER_DIST_URL=https://github.com/wso2/${WSO2_SERVER_REPOSITORY}/releases/download/v${WSO2_SERVER_VERSION}/${WSO2_SERVER}.zip
+# Build arguments for external artifacts.
+ARG DNS_JAVA_VERSION=3.6.1
+# Build argument for MOTD.
+ARG MOTD='printf "\n\
+ Welcome to WSO2 Docker Resources \n\
+ --------------------------------- \n\
+ This Docker container comprises of a WSO2 product, running with its latest GA release \n\
+ which is under the Apache License, Version 2.0. \n\
+ Read more about Apache License, Version 2.0 here @ http://www.apache.org/licenses/LICENSE-2.0.\n"'
+
+ENV JAVA_VERSION=jdk-17.0.11+9
 
 # Install JDK 17.
 RUN set -eux; \
@@ -57,30 +82,7 @@ RUN set -eux; \
 ENV JAVA_HOME=/opt/java/openjdk \
     PATH="/opt/java/openjdk/bin:$PATH" ENV=${USER_HOME}"/.ashrc"
 
-# Set Docker image build arguments.
-# Build arguments for user/group configurations.
-ARG USER=wso2carbon
-ARG USER_ID=802
-ARG USER_GROUP=wso2
-ARG USER_GROUP_ID=802
-ARG USER_HOME=/home/${USER}
-# Build arguments for WSO2 product installation.
-ARG WSO2_SERVER_NAME=wso2is
-ARG WSO2_SERVER_VERSION=7.1.0
-ARG WSO2_SERVER_REPOSITORY=product-is
-ARG WSO2_SERVER=${WSO2_SERVER_NAME}-${WSO2_SERVER_VERSION}
-ARG WSO2_SERVER_HOME=${USER_HOME}/${WSO2_SERVER}
-# Hosted wso2is-7.1.0 distribution URL.
-ARG WSO2_SERVER_DIST_URL=https://github.com/wso2/${WSO2_SERVER_REPOSITORY}/releases/download/v${WSO2_SERVER_VERSION}/${WSO2_SERVER}.zip
-# Build arguments for external artifacts.
-ARG DNS_JAVA_VERSION=3.6.1
-# Build argument for MOTD.
-ARG MOTD='printf "\n\
- Welcome to WSO2 Docker Resources \n\
- --------------------------------- \n\
- This Docker container comprises of a WSO2 product, running with its latest GA release \n\
- which is under the Apache License, Version 2.0. \n\
- Read more about Apache License, Version 2.0 here @ http://www.apache.org/licenses/LICENSE-2.0.\n"'
+
 
 # Create the non-root user and group and set MOTD login message.
 RUN \
@@ -106,11 +108,18 @@ RUN \
     && apk add unzip \
     && apk add wget
 
+COPY wso2is-7.1.0.zip /tmp/wso2is-7.1.0.zip
+
+# RUN \
+#     wget -O ${WSO2_SERVER}.zip "${WSO2_SERVER_DIST_URL}" \
+#     && unzip -d ${USER_HOME} ${WSO2_SERVER}.zip \
+#     && chown wso2carbon:wso2 -R ${WSO2_SERVER_HOME} \
+#     && rm -f ${WSO2_SERVER}.zip
+
 RUN \
-    wget -O ${WSO2_SERVER}.zip "${WSO2_SERVER_DIST_URL}" \
-    && unzip -d ${USER_HOME} ${WSO2_SERVER}.zip \
+    unzip -d ${USER_HOME} /tmp/wso2is-7.1.0.zip \
     && chown wso2carbon:wso2 -R ${WSO2_SERVER_HOME} \
-    && rm -f ${WSO2_SERVER}.zip
+    && rm -f /tmp/wso2is-7.1.0.zip
 
 # Add libraries for Kubernetes membership scheme based clustering.
 ADD --chown=wso2carbon:wso2 https://repo1.maven.org/maven2/dnsjava/dnsjava/${DNS_JAVA_VERSION}/dnsjava-${DNS_JAVA_VERSION}.jar ${WSO2_SERVER_HOME}/repository/components/lib
@@ -125,6 +134,12 @@ ENV WORKING_DIRECTORY=${USER_HOME} \
 
 # Expose ports.
 EXPOSE 4000 9763 9443
+
+# build arguments for external artifacts
+ARG MYSQL_CONNECTOR_VERSION=8.0.30
+
+# add MySQL JDBC connector to server home as a third party library
+ADD --chown=wso2carbon:wso2 https://repo1.maven.org/maven2/mysql/mysql-connector-java/${MYSQL_CONNECTOR_VERSION}/mysql-connector-java-${MYSQL_CONNECTOR_VERSION}.jar ${WSO2_SERVER_HOME}/repository/components/dropins/
 
 # Initiate container and start WSO2 Carbon server.
 ENTRYPOINT ["/home/wso2carbon/docker-entrypoint.sh"]

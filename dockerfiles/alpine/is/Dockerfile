@@ -75,7 +75,7 @@ ARG WSO2_SERVER_REPOSITORY=product-is
 ARG WSO2_SERVER=${WSO2_SERVER_NAME}-${WSO2_SERVER_VERSION}
 ARG WSO2_SERVER_HOME=${USER_HOME}/${WSO2_SERVER}
 # Hosted wso2is-7.1.0 distribution URL.
-ARG WSO2_SERVER_DIST_URL=https://github.com/wso2/${WSO2_SERVER_REPOSITORY}/releases/download/v${WSO2_SERVER_VERSION}/${WSO2_SERVER}.zip
+ARG WSO2_SERVER_DIST_URL="https://github.com/wso2/product-is/releases/download/v7.1.0/wso2is-7.1.0.zip"
 # Build arguments for external artifacts.
 ARG DNS_JAVA_VERSION=3.6.1
 # Build argument for MOTD.
@@ -86,6 +86,11 @@ ARG MOTD='printf "\n\
  which is under the Apache License, Version 2.0. \n\
  Read more about Apache License, Version 2.0 here @ http://www.apache.org/licenses/LICENSE-2.0.\n"'
 
+#  # build arguments for external artifacts
+# ARG MYSQL_CONNECTOR_VERSION=8.0.30
+
+# # add MySQL JDBC connector to server home as a third party library
+# ADD --chown=wso2carbon:wso2 https://repo1.maven.org/maven2/mysql/mysql-connector-java/${MYSQL_CONNECTOR_VERSION}/mysql-connector-java-${MYSQL_CONNECTOR_VERSION}.jar ${WSO2_SERVER_HOME}/repository/components/dropins/
 # Create the non-root user and group and set MOTD login message.
 RUN \
     addgroup -S -g ${USER_GROUP_ID} ${USER_GROUP} \
@@ -110,11 +115,20 @@ RUN \
     && apk add unzip \
     && apk add wget
 
+
 RUN \
     wget -O ${WSO2_SERVER}.zip "${WSO2_SERVER_DIST_URL}" \
     && unzip -d ${USER_HOME} ${WSO2_SERVER}.zip \
     && chown wso2carbon:wso2 -R ${WSO2_SERVER_HOME} \
     && rm -f ${WSO2_SERVER}.zip
+
+# Copy the zip file from the host into a temporary location in the image
+# COPY wso2is-7.1.0.zip /tmp/wso2is-7.1.0.zip
+
+# RUN \
+#     unzip -d ${USER_HOME} /tmp/wso2is-7.1.0.zip \
+#     && chown wso2carbon:wso2 -R ${WSO2_SERVER_HOME} \
+#     && rm -f /tmp/wso2is-7.1.0.zip
 
 # Add libraries for Kubernetes membership scheme based clustering.
 ADD --chown=wso2carbon:wso2 https://repo1.maven.org/maven2/dnsjava/dnsjava/${DNS_JAVA_VERSION}/dnsjava-${DNS_JAVA_VERSION}.jar ${WSO2_SERVER_HOME}/repository/components/lib
